@@ -22,3 +22,4 @@ results/local*/
 *.pfx
 credentials*.json
 secrets*.json
+model/

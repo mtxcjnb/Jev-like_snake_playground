@@ -1,4 +1,4 @@
-"""Measure one fixed visual question, with independent full recomputation."""
+"""Measure one fixed text question, with independent full recomputation."""
 import argparse
 import datetime
 import hashlib
@@ -10,7 +10,6 @@ import statistics
 import time
 
 import torch
-from PIL import Image
 from qwen_choice import QwenChoice
 
 
@@ -42,8 +41,6 @@ def main():
     root = Path(__file__).resolve().parent
     case_path = root / "examples/support_ticket.json"
     case = json.loads(case_path.read_text())
-    image_path = case_path.parent / case["image"]
-    image = Image.open(image_path).convert("RGB")
     torch.set_num_threads(4)
     torch.set_num_interop_threads(1)
     torch.manual_seed(42)
@@ -67,17 +64,15 @@ def main():
         "packages": versions, "cuda": torch.version.cuda,
         "gpu": torch.cuda.get_device_name(args.device), "dtype": "bfloat16",
         "loading_s": loading_s, "kernel_audit": runtime.kernel_audit,
-        "image_size": list(image.size), "image_sha256": digest(image_path),
         "case_sha256": digest(case_path),
         "source_sha256": {name: digest(root / name) for name in
-                          ("qwen_choice.py", "benchmark.py", "make_example.py")},
+                          ("qwen_choice.py", "benchmark.py")},
         "rounds": args.rounds, "warmup_per_profile": args.warmup,
-        "question_count_per_request": 1, "image_count_per_request": 1,
+        "question_count_per_request": 1,
         "batch_size": 1, "cross_request_cache": False,
-        "image_processing": "Official defaults; no pixel override or manual downsampling",
-        "request_timing": "In-memory RGB image to returned Python decision, synchronized CUDA boundaries; "
-        "includes rendering, tokenization, image preprocessing, input hashing, H2D, model, and readout; "
-        "excludes model loading, image file I/O, JSON log writes, cold/compile and warmup requests.",
+        "request_timing": "Question string to returned Python decision, synchronized CUDA boundaries; "
+        "includes rendering, tokenization, input hashing, H2D, model, and readout; "
+        "excludes model loading, JSON log writes, cold/compile and warmup requests.",
         "model_gpu_timing": "CUDA events after H2D and before result D2H; includes any GPU idle time "
         "between host launches; not an isolated kernel profiler.",
         "scope": "One fictional example repeated for latency; no accuracy or probability-calibration claim.",
@@ -88,7 +83,7 @@ def main():
     log = (args.output / "records.jsonl").open("w")
 
     def run(profile, phase, index):
-        result = runtime.judge(image, case["question"], case["options"], profile=profile)
+        result = runtime.judge(case["question"], case["options"], profile=profile)
         result.update(phase=phase, index=index,
                       matches_fixture=result["choice"] == case["expected_choice"])
         log.write(json.dumps(result) + "\n")
@@ -128,8 +123,7 @@ def main():
     audit = {
         "parameters_unchanged": True,
         "all_inputs_identical": all(len({r["audit"][key] for r in records}) == 1
-                                    for key in ("prompt_sha256", "input_ids_sha256", "pixel_values_sha256")),
-        "one_visual_forward_every_request": all(r["audit"]["visual_forward_calls"] == 1 for r in records),
+                                    for key in ("prompt_sha256", "input_ids_sha256")),
         "compiled_graph_ran_every_fast_request": all(r["audit"]["compiled_graph_calls"] > 0 for r in records
                                                        if r["profile"] == "accelerated"),
         "direct_one_forward_every_request": all(r["audit"]["model_forward_calls"] == 1 for r in records
