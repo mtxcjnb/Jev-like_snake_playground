@@ -1,0 +1,85 @@
+{
+  "setup_and_five_warmup_s": 5.259093860164285,
+  "compile_language": false,
+  "language_compilation": {
+    "graphs": 0,
+    "calls": 0
+  },
+  "input_checks": [
+    {
+      "all_prepared_tensors_equal": true,
+      "pixel_sha256": "9f017e3e827b67f77a5b5dbce3defd38ef193ae58597262f0c25bb1e91f0bf48"
+    },
+    {
+      "all_prepared_tensors_equal": true,
+      "pixel_sha256": "a73c6a2845ea57628c345ba34e9ff10c7b279251ea83b7757dafe69d6fcbe73b"
+    },
+    {
+      "all_prepared_tensors_equal": true,
+      "pixel_sha256": "9f017e3e827b67f77a5b5dbce3defd38ef193ae58597262f0c25bb1e91f0bf48"
+    }
+  ],
+  "profiles": {
+    "reference": {
+      "request_s": {
+        "n": 30,
+        "mean": 0.19992039172599713,
+        "median": 0.19982056133449078,
+        "min": 0.1952575482428074,
+        "max": 0.20613715890794992,
+        "p95": 0.20353825339116155
+      },
+      "model_gpu_s": {
+        "n": 30,
+        "mean": 0.14729601236979167,
+        "median": 0.14739116668701172,
+        "min": 0.1464423065185547,
+        "max": 0.1482322235107422,
+        "p95": 0.14807368545532226
+      },
+      "prepare_s": {
+        "n": 30,
+        "mean": 0.050291223792980115,
+        "median": 0.049898392520844936,
+        "min": 0.04638129472732544,
+        "max": 0.056819682009518147,
+        "p95": 0.05373099585995077
+      }
+    },
+    "fast": {
+      "request_s": {
+        "n": 30,
+        "mean": 0.18222172992924848,
+        "median": 0.18204063037410378,
+        "min": 0.1800863267853856,
+        "max": 0.18809787184000015,
+        "p95": 0.18417835053987802
+      },
+      "model_gpu_s": {
+        "n": 30,
+        "mean": 0.14759258524576824,
+        "median": 0.14767667388916017,
+        "min": 0.14668800354003905,
+        "max": 0.14863258361816406,
+        "p95": 0.14856927032470701
+      },
+      "prepare_s": {
+        "n": 30,
+        "mean": 0.03229495321090023,
+        "median": 0.03211685223504901,
+        "min": 0.03078966587781906,
+        "max": 0.03699696622788906,
+        "p95": 0.033344696881249546
+      }
+    }
+  },
+  "all_choices_match": true,
+  "max_paired_probability_diff": 0.0,
+  "parameters_unchanged": true,
+  "source_sha256": {
+    "qwen_choice.py": "40626f1ee634c2dcbb656926b89ccc838d830eb8e06e71cd5c964d8374b26d41",
+    "qwen_choice_fast.py": "79e96cfb807b99752626ae6ae7dcd646468d9ca3574bd3ccf9f972d77faee7dc",
+    "benchmark_fast.py": "21748289cbd45bc91f51eaff90e5c861797c8c9e581331bb29f6a9f8a87502a7"
+  },
+  "records_sha256": "a644457aadc82674dba678eccc469261457825e8e1aa4ca0d763084e31b81ffa"
+}

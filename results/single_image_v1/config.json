@@ -1,0 +1,43 @@
+{
+  "created_utc": "2026-09-21T02:47:57.929227+00:00",
+  "model": "Qwen/Qwen3.5-4B",
+  "python": "3.11.15",
+  "packages": {
+    "torch": "2.11.0+cu130",
+    "transformers": "5.13.1",
+    "triton": "3.6.0",
+    "flash-linear-attention": "0.5.2",
+    "fla-core": "0.5.2",
+    "causal-conv1d": "1.7.0+cu13torch2.11sm86",
+    "Pillow": "12.3.0"
+  },
+  "cuda": "13.0",
+  "gpu": "NVIDIA RTX A6000",
+  "dtype": "bfloat16",
+  "loading_s": 4.723528864793479,
+  "kernel_audit": {
+    "linear_attention_layers": 24,
+    "all_fast_kernels_active": true
+  },
+  "image_size": [
+    1280,
+    720
+  ],
+  "image_sha256": "755528976de885123eb5b4e5397f7d17da4aa25f24a6c84ece37c71326374f07",
+  "case_sha256": "f416ecd6e155cfc654c32d57dc427cbb2169eb4dec29d4b229fce020b4673c8f",
+  "source_sha256": {
+    "qwen_choice.py": "40626f1ee634c2dcbb656926b89ccc838d830eb8e06e71cd5c964d8374b26d41",
+    "benchmark.py": "6fc1b8965a34913f4839f875d08715018e5538e926ca8db3ecbe0c7080260b1c",
+    "make_example.py": "a5fa8fd926cd974a0fff2562f2f67483044570dff6553594d8ebb66a6dcb9b56"
+  },
+  "rounds": 30,
+  "warmup_per_profile": 5,
+  "question_count_per_request": 1,
+  "image_count_per_request": 1,
+  "batch_size": 1,
+  "cross_request_cache": false,
+  "image_processing": "Official defaults; no pixel override or manual downsampling",
+  "request_timing": "In-memory RGB image to returned Python decision, synchronized CUDA boundaries; includes rendering, tokenization, image preprocessing, input hashing, H2D, model, and readout; excludes model loading, image file I/O, JSON log writes, cold/compile and warmup requests.",
+  "model_gpu_timing": "CUDA events after H2D and before result D2H; includes any GPU idle time between host launches; not an isolated kernel profiler.",
+  "scope": "One fictional example repeated for latency; no accuracy or probability-calibration claim."
+}

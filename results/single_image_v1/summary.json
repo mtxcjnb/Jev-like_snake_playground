@@ -1,0 +1,123 @@
+{
+  "profiles": {
+    "native": {
+      "request_s": {
+        "n": 30,
+        "mean": 0.32481434668103853,
+        "median": 0.3235677946358919,
+        "min": 0.31956053897738457,
+        "max": 0.34281765203922987,
+        "p95": 0.33008773191832
+      },
+      "model_gpu_s": {
+        "n": 30,
+        "mean": 0.2668411376953125,
+        "median": 0.26613897705078127,
+        "min": 0.26543475341796874,
+        "max": 0.28198574829101564,
+        "p95": 0.2693900451660156
+      },
+      "prepare_s": {
+        "n": 30,
+        "mean": 0.055492839434494574,
+        "median": 0.054627327248454094,
+        "min": 0.051178556866943836,
+        "max": 0.0608419356867671,
+        "p95": 0.059767531044781205
+      },
+      "valid_count": 30,
+      "fixture_match_count": 30,
+      "choices": [
+        "billing"
+      ],
+      "generated_tokens": [
+        4
+      ]
+    },
+    "eager": {
+      "request_s": {
+        "n": 30,
+        "mean": 0.21876046884184083,
+        "median": 0.21840675314888358,
+        "min": 0.2133949277922511,
+        "max": 0.2242113845422864,
+        "p95": 0.22363634584471584
+      },
+      "model_gpu_s": {
+        "n": 30,
+        "mean": 0.16027022908528646,
+        "median": 0.1601996841430664,
+        "min": 0.15944090270996095,
+        "max": 0.16129536437988282,
+        "p95": 0.16097350158691406
+      },
+      "prepare_s": {
+        "n": 30,
+        "mean": 0.05603376775979996,
+        "median": 0.05598973110318184,
+        "min": 0.05131943244487047,
+        "max": 0.06166903953999281,
+        "p95": 0.06066514076665044
+      },
+      "valid_count": 30,
+      "fixture_match_count": 30,
+      "choices": [
+        "billing"
+      ],
+      "generated_tokens": [
+        0
+      ]
+    },
+    "accelerated": {
+      "request_s": {
+        "n": 30,
+        "mean": 0.20570100250964363,
+        "median": 0.20575650921091437,
+        "min": 0.2014263179153204,
+        "max": 0.21085979137569666,
+        "p95": 0.2099543464835733
+      },
+      "model_gpu_s": {
+        "n": 30,
+        "mean": 0.14726249593098958,
+        "median": 0.14732601928710937,
+        "min": 0.14641253662109374,
+        "max": 0.1484093475341797,
+        "p95": 0.14791859588623046
+      },
+      "prepare_s": {
+        "n": 30,
+        "mean": 0.055967860979338487,
+        "median": 0.05587598215788603,
+        "min": 0.05190912913531065,
+        "max": 0.06106529105454683,
+        "p95": 0.060310660675168035
+      },
+      "valid_count": 30,
+      "fixture_match_count": 30,
+      "choices": [
+        "billing"
+      ],
+      "generated_tokens": [
+        0
+      ]
+    }
+  },
+  "verification": {
+    "parameters_unchanged": true,
+    "all_inputs_identical": true,
+    "one_visual_forward_every_request": true,
+    "compiled_graph_ran_every_fast_request": true,
+    "direct_one_forward_every_request": true,
+    "max_eager_vs_accelerated_probability_difference": 3.93986701965332e-05,
+    "all_outputs_valid": true,
+    "all_fixture_matches": true
+  },
+  "cold_request_s": {
+    "native": 1.415072526782751,
+    "eager": 0.23973142262548208,
+    "accelerated": 2.685424809344113
+  },
+  "records_sha256": "ab012e2fe259ae11c14814a1ef26fdf139ab5a000bf8f95a6e8ce8c5ad857be0",
+  "config_sha256": "2e7f620ff9c101ad4b0e309421e1ec875f087633ac1d64aff211ccb0b52bf77e"
+}

@@ -1,0 +1,8 @@
+# Install a CUDA-compatible PyTorch wheel separately; tested: torch 2.11.0+cu130.
+torch==2.11.0
+transformers==5.13.1
+Pillow==12.3.0
+accelerate>=1.12,<2
+flash-linear-attention==0.5.2
+fla-core==0.5.2
+causal-conv1d==1.7.0

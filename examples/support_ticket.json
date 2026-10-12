@@ -1,0 +1,20 @@
+{
+  "question": "Which support category best matches the customer's message in the image?",
+  "options": {
+    "billing": "Unexpected payments, invoice discrepancies, or refund requests.",
+    "technical": "A product feature does not work or an account cannot be accessed.",
+    "sales": "Questions about plans, product capabilities, or discounts before purchase.",
+    "other": "No listed category fits, or the message is unreadable."
+  },
+  "message_lines": [
+    "Hello support,",
+    "My monthly plan costs $18, but my bank statement",
+    "shows two completed payments of $18 on Monday.",
+    "I only have one subscription.",
+    "Could you return the extra payment?",
+    "Thank you."
+  ],
+  "expected_choice": "billing",
+  "image": "support_ticket.png",
+  "image_size": [1280, 720]
+}

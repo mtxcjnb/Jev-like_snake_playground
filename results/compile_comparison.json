@@ -1,0 +1,30 @@
+{
+  "choice_before": "billing",
+  "choice_after": "billing",
+  "probabilities_before": {
+    "billing": 0.9993495345115662,
+    "technical": 0.00023040988889988512,
+    "sales": 8.476305811200291e-05,
+    "other": 0.0003352444327902049
+  },
+  "probabilities_after": {
+    "billing": 0.9995152950286865,
+    "technical": 0.00017947316518984735,
+    "sales": 7.48155580367893e-05,
+    "other": 0.0002304481022292748
+  },
+  "candidate_logits_before": [
+    27.5,
+    19.125,
+    18.125,
+    19.5
+  ],
+  "candidate_logits_after": [
+    27.625,
+    19.0,
+    18.125,
+    19.25
+  ],
+  "max_probability_difference": 0.00016576051712036133,
+  "scope": "One example repeated; comparison across two independent runs."
+}
