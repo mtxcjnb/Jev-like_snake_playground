@@ -47,23 +47,79 @@ class QwenChoice:
     def _model_called(self, module, args):
         self.model_calls += 1
 
+    @staticmethod
+    def _uses_fast_kernel(fn) -> bool:
+        """True when transformers hub/package wrapper replaced the torch reference."""
+        if not callable(fn):
+            return False
+        # Legacy: layer stored the imported kernel callable directly.
+        if getattr(fn, "__module__", "").startswith(("causal_conv1d", "fla")):
+            return True
+        closure, code = getattr(fn, "__closure__", None), getattr(fn, "__code__", None)
+        if not closure or not code or "is_new_implementation" not in code.co_freevars:
+            return False
+        return bool(closure[code.co_freevars.index("is_new_implementation")].cell_contents)
+
+    @staticmethod
+    def _fused_rmsnorm_active(norm, q) -> bool:
+        fused_cls = getattr(q, "FusedRMSNormGated", None)
+        if fused_cls is not None and isinstance(norm, fused_cls):
+            return True
+        try:
+            from fla.modules import FusedRMSNormGated as FlAFusedRMSNormGated
+        except ImportError:
+            FlAFusedRMSNormGated = None
+        if FlAFusedRMSNormGated is not None and isinstance(norm, FlAFusedRMSNormGated):
+            return True
+        # Hub kernels replace Qwen3_5RMSNormGated.forward with a non-reference impl.
+        pure = getattr(q.Qwen3_5RMSNormGated, "forward", None)
+        fwd = type(norm).forward
+        return callable(fwd) and fwd is not pure
+
     def _check_kernels(self):
         from transformers.models.qwen3_5 import modeling_qwen3_5 as q
-        rows = []
-        for layer in self.model.modules():
-            if isinstance(layer, q.Qwen3_5GatedDeltaNet):
-                rows.append({
-                    "causal_conv1d": layer.causal_conv1d_fn is q.causal_conv1d_fn
-                    and callable(q.causal_conv1d_fn),
-                    "fla_delta": layer.chunk_gated_delta_rule is q.chunk_gated_delta_rule
-                    and callable(q.chunk_gated_delta_rule),
-                    "fla_norm": q.FusedRMSNormGated is not None
-                    and isinstance(layer.norm, q.FusedRMSNormGated),
-                })
-        if not rows or not all(all(row.values()) for row in rows):
-            raise RuntimeError("Full acceleration requires causal-conv1d and FLA, "
-                               "including fused gated RMSNorm; no silent fallback")
-        return {"linear_attention_layers": len(rows), "all_fast_kernels_active": True}
+        layers = [m for m in self.model.modules() if isinstance(m, q.Qwen3_5GatedDeltaNet)]
+        if not layers:
+            raise RuntimeError("No Qwen3_5GatedDeltaNet layers found for kernel audit")
+
+        sample = layers[0]
+        # Older transformers attached kernel callables on each layer; 5.18+ calls
+        # module-level wrappers (package or hub) from forward().
+        if hasattr(sample, "causal_conv1d_fn"):
+            delta_fn = getattr(sample, "chunk_gated_delta_rule", None)
+            if delta_fn is None:
+                delta_fn = getattr(q, "chunk_gated_delta_rule", None)
+            status = {
+                "causal_conv1d": (
+                    sample.causal_conv1d_fn is q.causal_conv1d_fn
+                    and callable(q.causal_conv1d_fn)
+                    and self._uses_fast_kernel(q.causal_conv1d_fn)),
+                "fla_delta": (
+                    delta_fn is not None and callable(delta_fn)
+                    and self._uses_fast_kernel(delta_fn)),
+                "fla_norm": self._fused_rmsnorm_active(sample.norm, q),
+            }
+        else:
+            delta_fn = getattr(q, "torch_chunk_gated_delta_rule", None) or getattr(
+                q, "chunk_gated_delta_rule", None)
+            status = {
+                "causal_conv1d": self._uses_fast_kernel(q.causal_conv1d_fn),
+                "fla_delta": self._uses_fast_kernel(delta_fn),
+                "fla_norm": self._fused_rmsnorm_active(sample.norm, q),
+            }
+
+        if not all(status.values()):
+            missing = [name for name, ok in status.items() if not ok]
+            raise RuntimeError(
+                "Full acceleration requires causal-conv1d and FLA "
+                f"(missing/inactive: {', '.join(missing)}); no silent fallback. "
+                "Install causal-conv1d and flash-linear-attention, or enable "
+                "transformers hub kernels with use_kernels=True.")
+        return {
+            "linear_attention_layers": len(layers),
+            "all_fast_kernels_active": True,
+            **status,
+        }
 
     def prepare(self, question, options):
         if not isinstance(question, str) or not question.strip():

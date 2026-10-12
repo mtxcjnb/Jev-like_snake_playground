@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 .venv*/
+.conda/
 .env*
 !.env.example
 *.safetensors
@@ -23,3 +24,4 @@ results/local*/
 credentials*.json
 secrets*.json
 model/
+results/

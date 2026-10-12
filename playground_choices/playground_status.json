@@ -1,0 +1,104 @@
+{
+  "question": "You control a snake on a 20x20 grid. x increases to the right, y increases downward; valid cells are (0,0) to (19,19).\nRules: moving into a wall or the snake's own body ends the game. Eating food adds 1 to length and score.\nCurrent state: head (13,9), moving up, length 10, food at (13,8), score 7.\nChoose the next move. Prefer a SAFE move that brings the head closer to the food; avoid moves marked TRAP.",
+  "options": {
+    "up": "SAFE. Head moves to (13,8). EATS FOOD. Free space after move: 389 cells.",
+    "left": "SAFE. Head moves to (12,9). Food distance 1 -> 2 (farther). Free space after move: 390 cells.",
+    "right": "SAFE. Head moves to (14,9). Food distance 1 -> 2 (farther). Free space after move: 390 cells."
+  },
+  "facts": {
+    "up": {
+      "head": [
+        13,
+        8
+      ],
+      "deadly": false,
+      "reason": null,
+      "eats": true,
+      "food_distance_before": 1,
+      "food_distance_after": 0,
+      "free_space": 389,
+      "trap": false
+    },
+    "left": {
+      "head": [
+        12,
+        9
+      ],
+      "deadly": false,
+      "reason": null,
+      "eats": false,
+      "food_distance_before": 1,
+      "food_distance_after": 2,
+      "free_space": 390,
+      "trap": false
+    },
+    "right": {
+      "head": [
+        14,
+        9
+      ],
+      "deadly": false,
+      "reason": null,
+      "eats": false,
+      "food_distance_before": 1,
+      "food_distance_after": 2,
+      "free_space": 390,
+      "trap": false
+    }
+  },
+  "state": {
+    "grid": 20,
+    "snake": [
+      [
+        13,
+        9
+      ],
+      [
+        13,
+        10
+      ],
+      [
+        13,
+        11
+      ],
+      [
+        13,
+        12
+      ],
+      [
+        13,
+        13
+      ],
+      [
+        13,
+        14
+      ],
+      [
+        13,
+        15
+      ],
+      [
+        13,
+        16
+      ],
+      [
+        13,
+        17
+      ],
+      [
+        13,
+        18
+      ]
+    ],
+    "food": [
+      13,
+      8
+    ],
+    "direction": "up",
+    "score": 7,
+    "length": 10,
+    "steps": 78,
+    "alive": true,
+    "death_reason": null
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "question": "Which support category best matches the customer's message in the image?",
+  "question": "Which support category best matches the customer's message?\n\nCustomer message:\nHello support,\nMy monthly plan costs $18, but my bank statement\nshows two completed payments of $18 on Monday.\nI only have one subscription.\nCould you return the extra payment?\nThank you.",
   "options": {
     "billing": "Unexpected payments, invoice discrepancies, or refund requests.",
     "technical": "A product feature does not work or an account cannot be accessed.",
@@ -14,7 +14,5 @@
     "Could you return the extra payment?",
     "Thank you."
   ],
-  "expected_choice": "billing",
-  "image": "support_ticket.png",
-  "image_size": [1280, 720]
+  "expected_choice": "billing"
 }

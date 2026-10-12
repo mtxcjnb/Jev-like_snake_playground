@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Qwen Choice Snake</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --text:#d8dde6; --dim:#8a93a3;
+          --green:#4ade80; --head:#a3e635; --food:#f87171; --amber:#fbbf24; --blue:#60a5fa; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  header { display:flex; gap:18px; align-items:center; padding:10px 16px;
+           border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0 8px 0 0; }
+  .stat b { color:#fff; }
+  .stat span { color:var(--dim); }
+  button { background:#232834; color:var(--text); border:1px solid var(--line);
+           padding:4px 12px; border-radius:4px; cursor:pointer; font:inherit; }
+  button:hover { border-color:var(--blue); }
+  main { display:flex; flex-wrap:wrap; gap:16px; padding:16px; }
+  #left { flex:0 0 auto; display:flex; flex-direction:column; gap:10px; max-width:100%; }
+  canvas { background:#0b0d11; border:1px solid var(--line); border-radius:4px;
+           width:min(520px, calc(100vw - 34px)); height:auto; }
+  #phase { color:var(--dim); }
+  #games { color:var(--dim); max-width:520px; word-break:break-all; }
+  #log { flex:1 1 420px; min-width:0; max-height:calc(100vh - 90px); overflow-y:auto;
+         display:flex; flex-direction:column; gap:8px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:8px 10px; }
+  .card.died { border-color:var(--food); }
+  .card.ate { border-color:var(--green); }
+  .meta { display:flex; gap:12px; flex-wrap:wrap; color:var(--dim); }
+  .meta .choice { color:#fff; font-weight:bold; }
+  .badge { padding:0 6px; border-radius:3px; color:#000; font-weight:bold; }
+  .b-died { background:var(--food); } .b-ate { background:var(--green); }
+  .b-forced { background:var(--amber); }
+  .opt { display:grid; grid-template-columns:64px 120px 1fr; gap:8px; align-items:center; margin-top:4px; }
+  .opt .name { color:#fff; }
+  .opt.sel .name { color:var(--head); }
+  .bar { height:10px; background:#262b36; border-radius:2px; position:relative; }
+  .bar i { position:absolute; left:0; top:0; bottom:0; background:var(--blue); border-radius:2px; }
+  .opt.sel .bar i { background:var(--head); }
+  .pct { font-size:11px; color:var(--dim); margin-left:4px; }
+  .desc { color:var(--dim); grid-column:2 / 4; font-size:12px; }
+  .desc.DEADLY { color:var(--food); } .desc.TRAP { color:var(--amber); }
+  details { margin-top:6px; color:var(--dim); }
+  details pre { white-space:pre-wrap; margin:4px 0 0; color:var(--text); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Qwen Choice Snake</h1>
+  <div class="stat"><span>game</span> <b id="sGame">-</b></div>
+  <div class="stat"><span>score</span> <b id="sScore">-</b></div>
+  <div class="stat"><span>best</span> <b id="sBest">-</b></div>
+  <div class="stat"><span>mean score</span> <b id="sMean">-</b></div>
+  <div class="stat"><span>decisions</span> <b id="sDec">-</b></div>
+  <div class="stat"><span>forced</span> <b id="sForced">-</b></div>
+  <div class="stat"><span>mean request</span> <b id="sLat">-</b></div>
+  <div class="stat"><span>mean tokens</span> <b id="sTok">-</b></div>
+  <button id="pause">暂停</button>
+  <label>步进间隔 <input id="speed" type="range" min="0" max="1500" step="10"> <b id="speedVal"></b> ms</label>
+</header>
+<main>
+  <div id="left">
+    <canvas id="board" width="520" height="520"></canvas>
+    <div id="phase"></div>
+    <div id="games"></div>
+  </div>
+  <div id="log"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const ctx = $('board').getContext('2d');
+let lastSeq = 0, paused = false, sliderBusy = false;
+const MAX_CARDS = 150;
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const tagOf = d => d.startsWith('DEADLY') ? 'DEADLY' : d.startsWith('TRAP') ? 'TRAP' : 'SAFE';
+
+function drawBoard(b, phase) {
+  const W = $('board').width;
+  ctx.clearRect(0, 0, W, W);
+  if (!b) return;
+  const c = W / b.grid;
+  ctx.strokeStyle = '#161a22';
+  for (let i = 1; i < b.grid; i++) {
+    ctx.beginPath(); ctx.moveTo(i * c, 0); ctx.lineTo(i * c, W); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * c); ctx.lineTo(W, i * c); ctx.stroke();
+  }
+  if (b.food) {
+    ctx.fillStyle = '#f87171';
+    ctx.beginPath();
+    ctx.arc((b.food[0] + .5) * c, (b.food[1] + .5) * c, c * .38, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  b.snake.forEach(([x, y], i) => {
+    ctx.fillStyle = i === 0 ? (b.alive ? '#a3e635' : '#f87171') : '#4ade80';
+    ctx.globalAlpha = i === 0 ? 1 : Math.max(.45, 1 - i / (b.snake.length * 1.6));
+    ctx.fillRect(x * c + 1, y * c + 1, c - 2, c - 2);
+  });
+  ctx.globalAlpha = 1;
+  if (phase === 'game_over') {
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, W);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 26px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(`GAME OVER: ${b.death_reason}`, W / 2, W / 2 - 8);
+    ctx.font = '16px monospace';
+    ctx.fillText(`score ${b.score} · steps ${b.steps}`, W / 2, W / 2 + 22);
+  }
+}
+
+function card(e) {
+  const div = document.createElement('div');
+  div.className = 'card' + (e.event.died ? ' died' : e.event.ate ? ' ate' : '');
+  const probs = e.probabilities || {};
+  const opts = Object.entries(e.options).map(([k, d]) => {
+    const p = probs[k] ?? 0, t = tagOf(d);
+    return `<div class="opt${k === e.choice ? ' sel' : ''}">
+      <span class="name">${k === e.choice ? '▶ ' : ''}${esc(k)}</span>
+      <span class="bar"><i style="width:${(p * 100).toFixed(1)}%"></i></span>
+      <span class="pct">${(p * 100).toFixed(1)}%</span>
+      <span class="desc ${t}">${esc(d)}</span></div>`;
+  }).join('');
+  const forced = {only_safe_move: 'FORCED: only safe move, model not called',
+                  no_safe_move: 'DEAD END: every move is deadly, game ended'}[e.forced];
+  const badges = (forced ? `<span class="badge b-forced">${forced}</span>` : '')
+               + (e.event.died ? `<span class="badge b-died">DIED: ${esc(e.event.reason)}</span>` : '')
+               + (e.event.ate ? '<span class="badge b-ate">ATE</span>' : '');
+  div.innerHTML = `<div class="meta">
+      <span>#${e.seq}</span><span>game ${e.game} · step ${e.step}</span>
+      <span class="choice">${e.choice ? `→ ${esc(e.choice)} (${tagOf(e.options[e.choice])})` : '→ no move (trapped)'}</span>
+      <span>request ${(e.request_s * 1000).toFixed(1)} ms</span>
+      <span>gpu ${(e.model_gpu_s * 1000).toFixed(1)} ms</span>
+      <span>${e.input_tokens} tok</span>${badges}</div>
+    ${opts}
+    <details><summary>question</summary><pre>${esc(e.question)}</pre></details>`;
+  return div;
+}
+
+function render(s) {
+  const st = s.stats, b = s.board;
+  $('sGame').textContent = s.game_index;
+  $('sScore').textContent = b ? b.score : '-';
+  $('sBest').textContent = st.best_score;
+  $('sMean').textContent = st.mean_score.toFixed(2);
+  $('sDec').textContent = st.decisions;
+  $('sForced').textContent = st.forced_moves;
+  $('sLat').textContent = st.mean_request_ms.toFixed(1) + ' ms';
+  $('sTok').textContent = st.mean_input_tokens.toFixed(0);
+  paused = s.paused;
+  $('pause').textContent = paused ? '继续' : '暂停';
+  if (!sliderBusy) { $('speed').value = s.step_ms; $('speedVal').textContent = s.step_ms; }
+  $('phase').textContent = `phase: ${s.phase}${paused ? ' (paused)' : ''}` +
+    (b ? ` · length ${b.length} · steps ${b.steps} · moving ${b.direction}` : '');
+  $('games').textContent = st.games.length
+    ? 'finished: ' + st.games.map(g => `#${g.game}:${g.score}(${g.reason})`).join(' ') : '';
+  drawBoard(b, s.phase);
+  const log = $('log');
+  if (s.log_reset) log.innerHTML = '';
+  for (const e of s.log) { log.prepend(card(e)); lastSeq = e.seq; }
+  while (log.children.length > MAX_CARDS) log.lastChild.remove();
+}
+
+async function poll() {
+  try {
+    const r = await fetch(`/api/state?since=${lastSeq}`);
+    render(await r.json());
+  } catch (err) {
+    $('phase').textContent = 'server unreachable: ' + err;
+  }
+  setTimeout(poll, 150);
+}
+
+const control = body => fetch('/api/control', {method: 'POST', body: JSON.stringify(body)});
+$('pause').onclick = () => control({pause: !paused});
+$('speed').oninput = e => { sliderBusy = true; $('speedVal').textContent = e.target.value; };
+$('speed').onchange = e => { sliderBusy = false; control({step_ms: +e.target.value}); };
+poll();
+</script>
+</body>
+</html>
