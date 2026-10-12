@@ -89,3 +89,7 @@ python run.py --model /path/to/Qwen3.5-2B --local-files-only
 | [requirements.txt](requirements.txt) | Python 依赖 |
 
 模型权重从 [Qwen/Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) 或其他 Qwen3.5 因果语言模型单独获取，许可遵循模型发布方的条款。
+
+## 致谢
+
+封闭选项的单次前向判断来自 [RJMSWD/QwenJev](https://github.com/RJMSWD/QwenJev)。该项目把 Qwen3.5 改造成 Jev 式的本地选择，并给出视觉判断的加速路径。本仓库在此基础上做贪吃蛇对局。

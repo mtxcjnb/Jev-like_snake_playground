@@ -18,3 +18,8 @@ Qwen-versus-Jev benchmark. This project is not affiliated with TypeSafe.
 Qwen weights are loaded separately from
 [Qwen/Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B); their license and terms
 remain those supplied by the model publisher.
+
+The closed-set single-forward choice used by the snake playground comes from
+[RJMSWD/QwenJev](https://github.com/RJMSWD/QwenJev). That repository adapts
+Qwen3.5 into a local Jev-style decision. This project builds the game loop on
+that runtime.

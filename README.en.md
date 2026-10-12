@@ -89,3 +89,7 @@ Tested with Python 3.11, PyTorch 2.11.0+cu130, Transformers 5.13.1, FLA 0.5.2, a
 | [requirements.txt](requirements.txt) | Python dependencies |
 
 Weights come separately from [Qwen/Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) or another Qwen3.5 causal language model, under that publisher's license.
+
+## Acknowledgments
+
+The closed-set single-forward choice comes from [RJMSWD/QwenJev](https://github.com/RJMSWD/QwenJev). That project adapts Qwen3.5 into a local Jev-style decision and documents the acceleration path for visual judgments. This repository builds the snake game on that runtime.
