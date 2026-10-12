@@ -1,68 +1,14 @@
-# Qwen Choice
+# Jev-like Snake Playground
 
 **简体中文** | [English](README.en.md)
 
-基于 **Qwen3.5-4B** 的本地视觉判断工具。输入一张图片、一个问题和一组选项，通过一次模型前向计算，直接返回选项及其概率分布。
+本地贪吃蛇。每一步由代码算出合法走法的事实，再交给 **Qwen3.5** 在封闭选项里做一次判断，选出下一步。浏览器页面同步棋盘、选项概率和决策日志。
 
-**单卡 RTX A6000 实测：完整请求中位数 169 ms，P95 为 174 ms。** 使用原始 BF16 权重，关闭思考，无训练或量化。
-**切换其余Qwen模型直接可以按这个逻辑加速。**
-## 示例
+做法对齐 [Jev 的 Choice](https://docs.typesafe.ai/primitives/choice)：问题、选项和事实由程序给出，模型只在给定选项中选择。本仓库在本地运行 Qwen，不调用 Jev API，不需要 TypeSafe 密钥，也不隶属于 TypeSafe。详见 [SOURCES.md](SOURCES.md)。
 
-只回答一个问题：**图片中的客户消息属于哪类客服问题？**
+## 运行
 
-选项为 `billing`（账单）、`technical`（技术）、`sales`（销售）和 `other`（其他）。
-
-![虚构客服消息](examples/support_ticket.png)
-
-图片中的客户反映重复扣款，模型返回 `billing`。消息和图片均为虚构示例，问题与选项定义见 [support_ticket.json](examples/support_ticket.json)。
-
-## 性能
-
-以下为启用视觉与语言模型编译后的测量结果，日期为 2026-09-21。
-
-| 指标 | 结果 |
-|---|---:|
-| 完整请求中位数 | **168.694 ms** |
-| 完整请求 P95（95 分位） | **173.989 ms** |
-| GPU 模型阶段中位数 | 137.378 ms |
-| 正式测量次数 | 30 |
-| 匹配示例预期答案 | 30 / 30 |
-
-测量条件：单卡 RTX A6000、BF16、batch=1；一张 1280×720 图片、一个问题、四个选项。官方处理器默认设置得到 880 个视觉 token、989 个总输入 token。
-
-- **完整请求**从内存中的 RGB 图片开始，到选项与概率可用；包含图片处理、分词、CPU→GPU 传输、模型计算和结果读取，使用 CUDA 同步边界计时。
-- **GPU 模型阶段**在输入传输后、结果回传前用 CUDA 事件测量，包含视觉编码和语言模型，也可能包含主机提交算子间的等待。
-- 模型加载、图片文件读取、编译、预热、独立输入校验和日志写入不计入稳定请求耗时。固定问题的文字模板提前准备；图片及模型输出每次重新计算。
-- 测量前预热 5 次。编译准备与这 5 次预热合计约 14.1 秒，使用机器已有编译缓存；其他环境的启动时间可能不同。
-
-基准脚本交替运行两种输入准备路径，各测 30 次；上表取结果中的 `profiles.fast`。原始证据：[统计与校验](results/language_compile_v3/summary.json)、[逐次记录](results/language_compile_v3/records.jsonl)、[GPU 算子核查](results/operator_audit.json)。
-
-这是一个固定示例的延迟测量，30 次重复不构成通用准确率评测。返回概率是对给定选项分数做 softmax 归一化的结果，未经概率校准。编译可能造成细微数值变化，不保证逐位等价。
-
-## 工作方式
-
-```text
-图片 + 问题 + 选项
-        ↓
-官方图片处理器与分词器
-        ↓
-视觉编码器 + 语言模型：一次前向计算
-        ↓
-最后一个位置的输出分数
-        ↓
-选取答案字母对应分数 → softmax → 选项与概率
-```
-
-- **直接判断**：用单 token 字母表示选项，一次前向取得全部候选分数，跳过逐 token 生成。保留原始输出层，仅计算最后一个位置。
-- **快速算子**：使用 causal-conv1d、FLA gated delta rule、融合 gated RMSNorm，以及 PyTorch SDPA 调用的 FlashAttention；运行记录确认对应 GPU 内核已执行。
-- **模型编译**：视觉编码器使用 `torch.compile`；通过 `--compile-language` 同时编译语言模型。允许计算图切分，并记录实际执行情况。
-- **减少准备开销**：复用固定问题的文字模板，把诊断哈希放到独立校验中；较大输入使用固定内存与非阻塞传输。
-
-不跨请求复用图片、视觉特征、模型答案或语言状态。每个实例顺序处理请求。
-
-## 安装
-
-需要 NVIDIA CUDA GPU。实测环境为 Python 3.11、PyTorch 2.11.0+cu130、Transformers 5.13.1、FLA 0.5.2、Triton 3.6.0。
+需要 NVIDIA CUDA GPU。权重另行准备，默认识别本地目录 `model/Qwen3.5-0.8B`。
 
 ```bash
 python -m venv .venv
@@ -70,45 +16,76 @@ source .venv/bin/activate
 pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu130
 pip install packaging ninja
 pip install --no-build-isolation -r requirements.txt
+
+python run.py --local-files-only
 ```
 
-`causal-conv1d` 的构建需匹配 PyTorch、CUDA 和 GPU 架构。实测使用 `1.7.0+cu13torch2.11sm86` 的本地构建；缺少必要快速算子时，程序会报错，不会静默切换到慢速实现。
+然后打开 `http://127.0.0.1:8765`。页面可以暂停，并调节两步之间的最短间隔。`Ctrl+C` 结束时，已完成的对局写入 `--output` 目录下的 `summary.json`，逐步记录在 `records.jsonl`。
 
-## 运行
-
-使用 Hugging Face 模型：
+换成本地其他 Qwen3.5 权重：
 
 ```bash
-python benchmark_fast.py \
-  --model Qwen/Qwen3.5-4B \
-  --compile-language \
-  --output results/local-run
+python run.py --model /path/to/Qwen3.5-2B --local-files-only
 ```
 
-使用已有本地权重：
+| 参数 | 默认 | 作用 |
+|---|---|---|
+| `--model` | `model/Qwen3.5-0.8B` | Hugging Face 名称或本地权重目录 |
+| `--local-files-only` | 关闭 | 只读本地文件，不访问 Hub |
+| `--host` / `--port` | `127.0.0.1` / `8765` | 页面地址 |
+| `--grid` | `20` | 棋盘边长，至少为 6 |
+| `--step-ms` | `150` | 两步之间的最短间隔（毫秒） |
+| `--seed` | 随机 | 食物位置的随机种子 |
+| `--max-games` | 一直运行 | 完成指定局数后退出 |
+| `--output` | `results/playground-fast` | 日志目录，已存在时继续写入 |
+| `--profile` | `eager` | `accelerated` 会按提示长度反复编译，对局会卡住 |
 
-```bash
-python benchmark_fast.py \
-  --model /path/to/Qwen3.5-4B \
-  --local-files-only \
-  --compile-language \
-  --output results/local-run
+启动后先用 [examples/support_ticket.json](examples/support_ticket.json) 预热 5 次，再开始第一局。
+
+## 一步怎么决定
+
+```text
+当前棋盘
+    ↓
+去掉 180° 回头；算出每个方向的事实
+    ↓
+致命走法不进入选项
+    ↓
+安全走法 ≥ 2：一次前向，对选项字母打分并 softmax
+安全走法 = 1：直接走这一步
+安全走法 = 0：判为死局（trapped）
+    ↓
+执行、刷新页面；死亡后停 1.5 秒并开新局
 ```
 
-输出目录必须尚不存在。运行后查看 `summary.json` 中的 `profiles.fast`，逐次输出保存在 `records.jsonl`。修改图片尺寸、问题或选项后，应重新测量。
+每个方向的事实包括：落点、是否撞墙或撞到自己、是否吃到食物、食物曼哈顿距离变化、该步之后还能到达的空格数。空格数少于蛇身长度时标为 `TRAP`。提示要求优先选择靠近食物的 `SAFE` 走法，并避开 `TRAP`。
 
-## 文件说明
+模型侧不做逐 token 生成。选项名映射成单个大写字母，语言模型只跑一次，原始输出层只看最后一个位置，再在这些字母的分数上做 softmax。思考关闭。同一实例按顺序处理请求，不跨步复用答案。问题文本计划在题目和选项不变时复用，模型输出每次重算。
 
-| 文件 | 用途 |
+少于两个安全选项时不调用模型。
+
+## 规则
+
+- 正方形网格，x 向右、y 向下，蛇从中心、长度 3、朝右出发。
+- 不能 180° 回头。撞墙或撞到自己则死亡。
+- 吃到食物后长度和分数加 1，食物随机出现在空格上。
+- 棋盘被占满时记为 `board_full`。
+
+## 安装说明
+
+实测环境为 Python 3.11、PyTorch 2.11.0+cu130、Transformers 5.13.1、FLA 0.5.2、Triton 3.6.0。`causal-conv1d` 必须与 PyTorch、CUDA 和 GPU 架构匹配。缺少这些快速算子时程序会报错，不会静默退回慢速实现。
+
+## 文件
+
+| 路径 | 作用 |
 |---|---|
-| [qwen_choice.py](qwen_choice.py) | 单图单问推理、答案分数读取、快速算子验证 |
-| [qwen_choice_fast.py](qwen_choice_fast.py) | 可复用的问题模板与输入准备 |
-| [benchmark_fast.py](benchmark_fast.py) | 语言模型编译、配对计时与输入一致性校验 |
-| [examples/](examples/) | 虚构消息图片、问题与选项 |
+| [run.py](run.py) | 加载模型、驱动对局、写日志 |
+| [qwen_choice.py](qwen_choice.py) | 封闭选项的单次前向与分数读取 |
+| [qwen_choice_fast.py](qwen_choice_fast.py) | 复用不变的问题文本计划 |
+| [playground/snake.py](playground/snake.py) | 贪吃蛇规则 |
+| [playground/prompt.py](playground/prompt.py) | 把棋盘变成问题和选项事实 |
+| [playground/server.py](playground/server.py) | 轮询用的本地页面服务 |
+| [playground/static/index.html](playground/static/index.html) | 棋盘与决策日志 |
 | [requirements.txt](requirements.txt) | Python 依赖 |
 
-## 来源
-
-问题设计借鉴 Jev 的 Choice 模式与公开客服分类案例，详见 [SOURCES.md](SOURCES.md)。本项目在本地运行 Qwen，不调用 Jev API，不需要 TypeSafe 密钥，也不隶属于 TypeSafe。
-
-模型权重从 [Qwen/Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) 单独获取，其许可遵循模型发布方的条款。
+模型权重从 [Qwen/Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) 或其他 Qwen3.5 因果语言模型单独获取，许可遵循模型发布方的条款。

@@ -1,68 +1,14 @@
-# Qwen Choice
+# Jev-like Snake Playground
 
 [简体中文](README.md) | **English**
 
-Local visual decisions with **Qwen3.5-4B**. Supply one image, one question, and a fixed set of choices. A single model forward pass returns the selected choice and a probability distribution over the options.
+A local game of snake. Each step, code computes facts for the legal moves, then **Qwen3.5** picks one option from that closed set. A browser page shows the board, option probabilities, and the decision log.
 
-**Measured on one RTX A6000: 169 ms median request latency, 174 ms P95.** Uses the original BF16 weights with thinking disabled, without training or quantization.
+The setup follows [Jev's Choice](https://docs.typesafe.ai/primitives/choice): the program supplies the question, options, and facts, and the model only selects among those options. This repository runs Qwen locally. It does not call the Jev API, does not need a TypeSafe key, and is not affiliated with TypeSafe. See [SOURCES.md](SOURCES.md).
 
-## Example
+## Run
 
-Answer one question: **Which support category best matches the customer's message in the image?**
-
-The choices are `billing`, `technical`, `sales`, and `other`.
-
-![Fictional customer support message](examples/support_ticket.png)
-
-The customer reports a duplicate payment, and the model selects `billing`. The message and image are fictional. See [support_ticket.json](examples/support_ticket.json) for the question and option definitions.
-
-## Performance
-
-Measured on September 21, 2026, with both vision and language model compilation enabled.
-
-| Metric | Result |
-|---|---:|
-| Median request latency | **168.694 ms** |
-| P95 request latency | **173.989 ms** |
-| Median GPU model stage | 137.378 ms |
-| Measured requests | 30 |
-| Matches to the example's expected answer | 30 / 30 |
-
-Configuration: one RTX A6000, BF16, batch size 1; one 1280×720 image, one question, and four choices. Official processor defaults produce 880 visual tokens and 989 total input tokens.
-
-- **Request latency** starts with an RGB image in host memory and ends when the choice and probabilities are available. It includes image preprocessing, tokenization, CPU-to-GPU transfer, model computation, and result readout, with synchronized CUDA boundaries.
-- **GPU model stage** is measured with CUDA events after input transfer and before result transfer. It includes vision encoding and the language model, and may include gaps between host kernel submissions.
-- Model loading, image file I/O, compilation, warmup, separate input verification, and log writes are excluded from steady-state latency. The fixed question's text template is prepared in advance; images and model outputs are recomputed for every request.
-- Five warmup requests precede measurement. Compilation setup and these five warmup requests took approximately 14.1 seconds with existing machine compilation caches. Startup time can differ on other systems.
-
-The benchmark alternates between two input preparation paths, measuring 30 requests per path. The table reports `profiles.fast`. Evidence: [summary and checks](results/language_compile_v3/summary.json), [per-request records](results/language_compile_v3/records.jsonl), and [GPU kernel audit](results/operator_audit.json).
-
-This measures latency on one fixed example. Thirty repetitions are not a general accuracy evaluation. Probabilities are softmax-normalized scores over the supplied options and are not calibrated. Compilation can introduce small numerical differences; bitwise equivalence is not guaranteed.
-
-## How it works
-
-```text
-Image + question + choices
-           ↓
-Official image processor and tokenizer
-           ↓
-Vision encoder + language model: one forward pass
-           ↓
-Output scores at the final position
-           ↓
-Select answer-letter scores → softmax → choice and probabilities
-```
-
-- **Direct decisions:** represent each option with a single-token letter and score all candidates in one forward pass, skipping autoregressive generation. The original output head is applied only at the final position.
-- **Fast kernels:** causal-conv1d, FLA gated delta rule, fused gated RMSNorm, and FlashAttention through PyTorch SDPA. Runtime profiling confirms that the corresponding GPU kernels execute.
-- **Compilation:** the vision encoder uses `torch.compile`; `--compile-language` also compiles the language model. Graph breaks are allowed, and actual compiled execution is recorded.
-- **Lower preparation overhead:** reuse the fixed question's text template and perform diagnostic hashing in separate verification. Larger input tensors use pinned memory and nonblocking transfers.
-
-Images, visual features, answers, and language states are not reused across requests. Each instance handles requests sequentially.
-
-## Installation
-
-Requires an NVIDIA CUDA GPU. Tested with Python 3.11, PyTorch 2.11.0+cu130, Transformers 5.13.1, FLA 0.5.2, and Triton 3.6.0.
+Requires an NVIDIA CUDA GPU. Weights are obtained separately. The default path is `model/Qwen3.5-0.8B`.
 
 ```bash
 python -m venv .venv
@@ -70,45 +16,76 @@ source .venv/bin/activate
 pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu130
 pip install packaging ninja
 pip install --no-build-isolation -r requirements.txt
+
+python run.py --local-files-only
 ```
 
-The `causal-conv1d` build must match PyTorch, CUDA, and the GPU architecture. The measured environment used a local `1.7.0+cu13torch2.11sm86` build. Missing required fast kernels cause an explicit error rather than a silent slow-path fallback.
+Open `http://127.0.0.1:8765`. The page can pause the game and change the minimum gap between moves. On `Ctrl+C`, finished games are written to `summary.json` under `--output`, and per-step records go to `records.jsonl`.
 
-## Run
-
-Load the model from Hugging Face:
+Point `--model` at other local Qwen3.5 weights:
 
 ```bash
-python benchmark_fast.py \
-  --model Qwen/Qwen3.5-4B \
-  --compile-language \
-  --output results/local-run
+python run.py --model /path/to/Qwen3.5-2B --local-files-only
 ```
 
-Use existing local weights:
+| Flag | Default | Role |
+|---|---|---|
+| `--model` | `model/Qwen3.5-0.8B` | Hugging Face id or a local weight directory |
+| `--local-files-only` | off | Read local files only; do not contact the Hub |
+| `--host` / `--port` | `127.0.0.1` / `8765` | Page address |
+| `--grid` | `20` | Board size; minimum 6 |
+| `--step-ms` | `150` | Minimum milliseconds between moves |
+| `--seed` | random | Seed for food placement |
+| `--max-games` | run until stopped | Exit after this many finished games |
+| `--output` | `results/playground-fast` | Log directory; an existing directory is reused |
+| `--profile` | `eager` | `accelerated` recompiles for each new prompt length and stalls the game |
 
-```bash
-python benchmark_fast.py \
-  --model /path/to/Qwen3.5-4B \
-  --local-files-only \
-  --compile-language \
-  --output results/local-run
+Startup warms the model with five passes over [examples/support_ticket.json](examples/support_ticket.json) before the first game.
+
+## One decision
+
+```text
+Current board
+    ↓
+Drop the 180° reversal and compute facts for each direction
+    ↓
+Deadly moves are left out of the options
+    ↓
+2 or more safe moves: one forward pass, score the option letters, softmax
+1 safe move: take it
+0 safe moves: end the game as trapped
+    ↓
+Apply the move and refresh the page; after death, wait 1.5s and start a new game
 ```
 
-The output directory must not already exist. Read `profiles.fast` in `summary.json`; individual outputs are saved in `records.jsonl`. Remeasure after changing image dimensions, questions, or choices.
+Facts for a direction are the landing cell, wall or self collision, whether it eats, the change in Manhattan distance to the food, and how many empty cells remain reachable. A move is marked `TRAP` when that free space is smaller than the snake. The prompt prefers a `SAFE` move that gets closer to the food and tells the model to avoid `TRAP`.
+
+The model does not generate token by token. Option names map to single uppercase letters. The language model runs once, the original output head is applied only at the last position, and those letter scores are softmax-normalized. Thinking is disabled. One instance handles requests in order and does not reuse answers across steps. The text plan is reused when the question and options are unchanged; model outputs are recomputed every call.
+
+The model is not called when fewer than two safe moves remain.
+
+## Rules
+
+- Square grid, x to the right and y downward. The snake starts at the center with length 3, facing right.
+- A 180° reversal is illegal. Hitting a wall or the snake's own body ends the game.
+- Eating food adds 1 to length and score. The next food cell is chosen at random among empty cells.
+- A completely filled board is recorded as `board_full`.
+
+## Install notes
+
+Tested with Python 3.11, PyTorch 2.11.0+cu130, Transformers 5.13.1, FLA 0.5.2, and Triton 3.6.0. The `causal-conv1d` build must match PyTorch, CUDA, and the GPU architecture. Missing fast kernels raise an error instead of falling back to a slow path.
 
 ## Files
 
-| File | Purpose |
+| Path | Role |
 |---|---|
-| [qwen_choice.py](qwen_choice.py) | Single-image decisions, score readout, and fast-kernel checks |
-| [qwen_choice_fast.py](qwen_choice_fast.py) | Reusable question templates and input preparation |
-| [benchmark_fast.py](benchmark_fast.py) | Language model compilation, paired timing, and input equality checks |
-| [examples/](examples/) | Fictional message image, question, and choices |
+| [run.py](run.py) | Load the model, drive games, write logs |
+| [qwen_choice.py](qwen_choice.py) | One forward pass and score readout for a closed set |
+| [qwen_choice_fast.py](qwen_choice_fast.py) | Reuse an unchanged question text plan |
+| [playground/snake.py](playground/snake.py) | Snake rules |
+| [playground/prompt.py](playground/prompt.py) | Turn a board into a question and option facts |
+| [playground/server.py](playground/server.py) | Local page server with polling |
+| [playground/static/index.html](playground/static/index.html) | Board and decision log |
 | [requirements.txt](requirements.txt) | Python dependencies |
 
-## Sources
-
-The question design draws on Jev's Choice pattern and public support-classification examples. See [SOURCES.md](SOURCES.md). This project runs Qwen locally, makes no Jev API calls, needs no TypeSafe key, and is not affiliated with TypeSafe.
-
-Model weights are obtained separately from [Qwen/Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) and remain subject to the model publisher's license terms.
+Weights come separately from [Qwen/Qwen3.5-4B](https://huggingface.co/Qwen/Qwen3.5-4B) or another Qwen3.5 causal language model, under that publisher's license.
